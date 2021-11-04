@@ -1,0 +1,9 @@
+.DS_Store
+.singularity
+singularity
+resources/deepsea.beluga.2002.cpu
+resources/hg19.fa
+resources/hg19.fa.fai
+resources/hg19.fa.flat
+resources/hg19.fa.gdx
+resources/training

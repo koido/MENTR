@@ -1,0 +1,10 @@
+# $ conda create --name mentr -c conda-forge -c bioconda --file mentr_env.txt python=3.6.4
+bedops=2.4.35
+numpy=1.14.0
+pandas=0.22.0
+pyfasta=0.5.2
+scikit-learn=0.19.1
+six=1.11.0
+xgboost=0.72.1
+pytorch=0.4.0
+h5py=2.7.1
