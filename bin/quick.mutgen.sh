@@ -86,7 +86,7 @@ bash ./01.get.pairs.sh -i ${in_f} -o ${cmn_dir} -w ${window_n}
 echo -e "Preprocessing for collecting information of input files...\n\n"
 bash ./02.collect.inputs.sh -o ${cmn_dir}
 
-if [ ${cpu} -eq 1]; then
+if [ ${cpu} -eq 1 ]; then
   echo -e "Running in silico mutagenesis using only CPUs...\n\n"
   bash ./03.run.mutgen.sh -o ${cmn_dir} -m ${deepsea} -f ${hg19_fa} -t ${n_cpu} -c
 else
