@@ -6,11 +6,12 @@
 #   Usage:
 #     03.run.mutgen.sh [-o cmn_dir] ...
 #       -o TEXT  output dir [required]
-#       -c INT   Number of CPUs for xgboost. [default:1]
+#       -t INT   Number of CPUs. [default:1]
 #       -j INT   Number of jobs per 1-GPU. If >1 value is specified, ${j} jobs will use single GPU, simultaneously. **Must be the same with 02.collect.inputs.sh** [default:1]
-#       -m TEXT  File of DeepSEA Beluga model (deepsea.beluga.2002.cpu)
-#       -f TEXT  File of hg19.fa
+#       -m TEXT  File of DeepSEA Beluga model (deepsea.beluga.2002.cpu) [required]
+#       -f TEXT  File of hg19.fa [required]
 #       -d       Dry Run mode
+#       -c       Only CPU mode
 #       -h       Show help (this message)
 
 # Move to MENTR/bin dir
@@ -22,16 +23,17 @@ source ../src/sh/utils.sh
 # == arg parser ==
 
 # init
+cpu=0
 DryRun=0
 n_cpu=1
 job_1gpu=1
 
 # get
-while getopts ":o:c:j:m:f:dh" optKey; do
+while getopts ":o:t:j:m:f:cdh" optKey; do
   case "${optKey}" in
     o)
       cmn_dir="${OPTARG}";;
-    c)
+    t)
       n_cpu="${OPTARG}";;
     j)
       job_1gpu="${OPTARG}";;
@@ -39,6 +41,8 @@ while getopts ":o:c:j:m:f:dh" optKey; do
       deepsea="${OPTARG}";;
     f)
       hg19_fa="${OPTARG}";;
+    c)
+      cpu=1;;
     d)
       DryRun=1;;
     h)
@@ -67,7 +71,7 @@ if [ -z "${hg19_fa}" ]; then
 fi
 
 # INT check
-int_chk ${n_cpu} "-c"
+int_chk ${n_cpu} "-t"
 int_chk ${job_1gpu} "-j"
 
 # == common args ==
@@ -83,6 +87,13 @@ if [ ! -e ${deepsea} ]; then
   exit 1
 fi
 
+# main script
+if [ ${cpu} -eq 1 ]; then
+  sh_script=../src/sh/insilico_mutgen_run_cpu.sh
+else
+  sh_script=../src/sh/insilico_mutgen_run.sh
+fi
+
 # == Dry RUN ==
 set -eu
 if [ ${DryRun} -eq 1 ]; then
@@ -92,10 +103,10 @@ if [ ${DryRun} -eq 1 ]; then
   echo -e "# hg19_fa: ${hg19_fa}"
   echo -e "# job_1gpu: ${job_1gpu}"
   echo -e "# n_cpu: ${n_cpu}"
-  echo -e "bash ../src/sh/insilico_mutgen_run.sh ${cmn_dir} ${ml_dir} ${hg19_fa} ${deepsea} ${job_1gpu} ${n_cpu}"
+  echo -e "bash ${sh_script} ${cmn_dir} ${ml_dir} ${hg19_fa} ${deepsea} ${job_1gpu} ${n_cpu}"
   exit 1
 fi
 
 # == RUN ==
-bash ../src/sh/insilico_mutgen_run.sh ${cmn_dir} ${ml_dir} ${hg19_fa} ${deepsea} ${job_1gpu} ${n_cpu}
+bash ${sh_script} ${cmn_dir} ${ml_dir} ${hg19_fa} ${deepsea} ${job_1gpu} ${n_cpu}
 

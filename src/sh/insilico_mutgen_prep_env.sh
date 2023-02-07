@@ -71,7 +71,7 @@ function prep_run(){
 }
 export -f prep_run
 
-max_index=`expr ${max_gpu} - 1`
+max_index=$((${max_gpu} - 1))
 max_ij=`expr ${max_gpu} \* ${job_1gpu}`
 
 # init

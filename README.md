@@ -2,7 +2,7 @@
 
 Please cite the following papers when you use MENTR:
 
- - [MENTR paper](https://www.nature.com/articles/s41551-022-00961-8): M Koido et al. Prediction of the cell-type-specific transcription of non-coding RNAs from genome sequences via machine learning. Nat. Biomed. Eng. 2022.
+ - [MENTR paper](https://www.nature.com/articles/s41551-022-00961-8): M Koido et al. Prediction of the cell-type-specific transcription of non-coding RNAs from genome sequences via machine learning. Nat. Biomed. Eng. 2022. [SharedIt URL](https://rdcu.be/c26Uj), [News&View in NBME](https://rdcu.be/c26TZ)
  - FANTOM5 papers ([FANTOM CAT](http://dx.doi.org/10.1038/nature21374), [Promoter atlas](https://doi.org/10.1038/nature13182), [Enhancer atlas](https://doi.org/10.1038/nature12787)) and [LCL CAGE QTL paper](https://doi.org/10.1038/s41467-017-01467-7), whose resources we used for training MENTR ML models   
  - [ExPecto paper](https://doi.org/10.1038/s41588-018-0160-6) (We used the pre-trained DeepSEA Beluga model, which this repository does NOT contain, and script for utilizing the model)
 
