@@ -90,7 +90,7 @@ fi
 int_chk ${n_cpu} "-t"
 int_chk ${window_n} "-w"
 
-if [ ${cage_list} != "ALL" ];
+if [ ${cage_list} != "ALL" ]; then
   join -t$'\t' -1 5 \
     <(sort -t$'\t' -k5,5 ${in_bed}) \
     <(echo ${cage_list} | sed -e "s/;/\n/g" | sort) | \
