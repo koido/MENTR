@@ -54,7 +54,7 @@ while getopts ":i:o:m:f:t:w:b:p:ch" optKey; do
     b)
       in_bed="${OPTARG}";;
     p)
-      cage_list="${cage_list}";;
+      cage_list="${OPTARG}";;
     c)
       cpu=1;;
     h)
