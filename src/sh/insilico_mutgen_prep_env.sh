@@ -21,23 +21,6 @@ job_1gpu=$3
 # depreciated variable
 type=logistic
 
-# cmn function for cleaning before first running
-function init_run(){
-
-    set -u
-
-    type=${1}
-    cmn_dir=${2}
-    index=${3}
-
-    log_cmn=${cmn_dir}/output/${type}_${index}
-    job_name=${type}_${index}
-    rm -f ${log_cmn}.std.log
-    rm -f ${log_cmn}.err.log
-    rm -f ${cmn_dir}/input/multifile_${index}_${type}.txt
-}
-export -f init_run
-
 # preparation of input files
 function prep_run(){
 
@@ -80,7 +63,7 @@ for index in `seq 0 ${max_index}`
 do
     for j in `seq 1 ${job_1gpu}`
     do
-        rm -f ${cmn_dir}/output/multifile_${ij}_${type}.txt
+        rm -f ${cmn_dir}/input/multifile_${ij}_${type}.txt
         ((ij++))
     done
 done
