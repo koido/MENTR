@@ -106,10 +106,11 @@ if args.lowmem:
     idx_start = 0
     for Xreducedall_chunk in readers:
 
-        print('Running chunk: {}-{}/{}'.format(idx_start, idx_start + Xreducedall_chunk.shape[0], Xreducedall_chunk.shape[0]))
+        chunked_size = Xreducedall_chunk.shape[0]
+        print('Running chunk: {}-{}'.format(idx_start, idx_start + chunked_size))
 
         # Prepare index for extracting the same rows from Peak
-        idx_end = idx_start + Xreducedall_chunk.shape[0]
+        idx_end = idx_start + chunked_size
         Peak_chunk = Peak.iloc[idx_start:idx_end, :]
 
         _names = []
@@ -122,7 +123,7 @@ if args.lowmem:
         assert Xreducedall_chunk.shape[0] == Peak_chunk.shape[0]
 
         na_rows_chunk = Xreducedall_chunk.apply(find_na, axis = 1)
-        na_rows = na_rows_chunk if 'na_rows' not in locals() else na_rows + na_rows_chunk
+        na_rows = na_rows_chunk if 'na_rows' not in locals() else pd.concat([na_rows, na_rows_chunk])
 
         # Remove NA rows from Xreducedall_chunk and Peak_chunk
         Xreducedall_chunk = Xreducedall_chunk.loc[na_rows_chunk == False, :]
@@ -219,7 +220,7 @@ if args.lowmem:
             metrics = metrics + metrics_chunk
         
         # Update index
-        idx_start += Xreducedall_chunk.shape[0]
+        idx_start += chunked_size
 
 else:
     Xreducedall = pd.read_csv(args.chromFile, dtype = 'float32', delimiter = '\t', header=None)
@@ -233,7 +234,6 @@ else:
     assert Xreducedall.shape[0] == Peak.shape[0]
     
     na_rows = Xreducedall.apply(find_na, axis = 1)
-    print("#na_rows: ", sum(na_rows))
 
     # Remove NA rows from Xreducedall and Peak
     Xreducedall = Xreducedall.loc[na_rows == False, :]
@@ -284,10 +284,7 @@ else:
         f['other'].create_dataset('X', data = X_other, compression = "gzip", compression_opts = 9)
         f['other'].create_dataset('y', data = Y_other, compression = "gzip", compression_opts = 9)
 
-    # Save info, X column, Y column, common rows as txt.gz file
-    info_train.to_csv(args.output + 'info_train.txt.gz', header = True, compression = 'gzip', sep = "\t", index=False)
-    info_test.to_csv(args.output + 'info_test.txt.gz', header = True, compression = 'gzip', sep = "\t", index=False)
-    info_other.to_csv(args.output + 'info_other.txt.gz', header = True, compression = 'gzip', sep = "\t", index=False)
+    # Save X column, Y column, common rows as txt.gz file
     pd.DataFrame(X_train.columns).to_csv(args.output + 'X_train_col.txt.gz', header = False, compression = 'gzip', sep = "\t", index=False)
     pd.DataFrame(X_test.columns).to_csv(args.output + 'X_test_col.txt.gz', header = False, compression = 'gzip', sep = "\t", index=False)
     pd.DataFrame(X_other.columns).to_csv(args.output + 'X_other_col.txt.gz', header = False, compression = 'gzip', sep = "\t", index=False)
@@ -298,6 +295,13 @@ else:
     # data metrics
     metrics = pd.DataFrame([[len(X_train), len(X_test), len(X_other)]])
     metrics.columns = ['N_train', 'N_test', 'N_other']
+
+print("#na_rows: ", sum(na_rows))
+
+# Write info
+info_train.to_csv(args.output + 'info_train.txt.gz', header = True, compression = 'gzip', sep = "\t", index=False)
+info_test.to_csv(args.output + 'info_test.txt.gz', header = True, compression = 'gzip', sep = "\t", index=False)
+info_other.to_csv(args.output + 'info_other.txt.gz', header = True, compression = 'gzip', sep = "\t", index=False)
 
 
 # Write common rows for train, test, others
