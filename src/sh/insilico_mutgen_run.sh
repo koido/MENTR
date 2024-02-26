@@ -1,5 +1,4 @@
 #!/usr/bin/bash
-
 #SBATCH --job-name mutgen
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=1
@@ -8,18 +7,19 @@ set -u
 
 out_dir_cmn=$1
 ml_dir=$2
-hg19_fa=$3
+ref_fa=$3
 deepsea=$4
 # Number of jobs per 1 GPU
 job_1gpu=$5
 # number of thread (CPU)
 n_core=$6
-
 # mutgen parameters
-model_list_log=${ml_dir}/resources/mutgen_cmn/modellist_xgb.txt
-calib_modelList=${ml_dir}/resources/mutgen_cmn/modellist_calib.txt
-py_script=${ml_dir}/src/py3/mutagen_nonlinear.py
-peak_info=${ml_dir}/resources/mutgen_cmn/cage_peak.txt.gz
+model_list_log=$7
+calib_modelList=$8
+# peak file
+peak_info=$9
+# Main python script
+py_script=${10}
 
 # Header name of input file which you prepared; comma separated
 in_cols="CHR,POS,REF,ALT"
@@ -38,7 +38,7 @@ function run_mutgen(){
     n_core=${4}
     model_list_log=${5}
     index=${6}
-    hg19_fa=${7}
+    ref_fa=${7}
     peak_info=${8}
     deepsea=${9}
     in_cols=${10}
@@ -47,7 +47,7 @@ function run_mutgen(){
     log_cmn=${cmn_dir}/output/${type}_${index}
 
     python -u ${py_script} \
-      --hg19 ${hg19_fa} \
+      --ref_fa ${ref_fa} \
       --peakinfo ${peak_info} \
       --deepsea ${deepsea} \
       --threads ${n_core} \
@@ -69,7 +69,7 @@ max_j=`expr ${job_1gpu} - 1`
 # run
 for j in `seq 0 ${max_j}`
 do
-    run_mutgen ${out_dir_cmn} ${type} ${py_script} ${n_core} ${model_list_log} ${j} ${hg19_fa} ${peak_info} ${deepsea} "${in_cols}" ${ml_dir} &
+    run_mutgen ${out_dir_cmn} ${type} ${py_script} ${n_core} ${model_list_log} ${j} ${ref_fa} ${peak_info} ${deepsea} "${in_cols}" ${ml_dir} &
 done
 
 wait;

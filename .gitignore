@@ -7,3 +7,5 @@ resources/hg19.fa.fai
 resources/hg19.fa.flat
 resources/hg19.fa.gdx
 resources/training
+debug
+**/.DS_Store

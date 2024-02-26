@@ -29,7 +29,7 @@ In addition to the image, you need to get the external resources (see [here](htt
 
 ### External resources
 
- - hg19.fa
+ - Reference fasta file (e.g., hg19.fa)
  - deepsea.beluga.2002.cpu (from https://github.com/FunctionLab/ExPecto, especially [here]( https://github.com/FunctionLab/ExPecto/blob/447737793d8d21e50e82379feca44fb9465fdc79/download_resources.sh); `wget http://deepsea.princeton.edu/media/code/expecto/resources.tar.gz`)
 
 These are required even if you use Docker or Singularity image.
@@ -42,16 +42,16 @@ These are required even if you use Docker or Singularity image.
 # Please specify
 cmn_dir="where you want to write results"
 deepsea="where deepsea.beluga.2002.cpu is"
-hg19_fa="where hg19.fa is"
+ref_fa="where reference fasta file is"
 ```
 
 ### Step 1) Prepare input file
 
 TSV file with:
 col1: Chromosome number
-col2: Position (hg19)
-col3: Reference allele (hg19)
-col4: Alternate allele (hg19)
+col2: Position
+col3: Reference allele
+col4: Alternate allele
 
 The default setting assumes no header line.
 see example file (./resources/example/input.txt.gz)
@@ -71,7 +71,7 @@ Here is the single command, quick run method.
  - Need 1-GPU and 1-CPU.
 
 ```bash
-bash bin/quick.mutgen.sh -i ${in_f} -o ${cmn_dir} -m ${deepsea} -f ${hg19_fa}
+bash bin/quick.mutgen.sh -i ${in_f} -o ${cmn_dir} -m ${deepsea} -f ${ref_fa}
 ```
 
 You can get all_qcd_res.txt.gz.

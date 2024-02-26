@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-"""Predict epigenetic features from hg19.
+"""Predict epigenetic features from reference sequence.
 """
 
 import argparse
@@ -17,7 +17,7 @@ warnings.simplefilter("ignore", category = FutureWarning)
 import pandas as pd
 
 parser = argparse.ArgumentParser(
-    description='Predict variant epigenetic features from hg19.fa using DeepSEA Beluga')
+    description='Predict variant epigenetic features from reference sequence using DeepSEA Beluga')
 # General Parameters
 parser.add_argument('--inputsize', type=int, default=2000,
                     help="Sequence window size for Deep Learning")
@@ -27,8 +27,8 @@ parser.add_argument('--threads', type=int, default=1,
                     help="Number of threads.")
 parser.add_argument('--output', required=True,
                     help="Prefix for output files")
-parser.add_argument('--hg19', type=str, required=True,
-                    help='File location for hg19.fa')
+parser.add_argument('--ref', type=str, required=True,
+                    help='File location for reference sequence')
 parser.add_argument('--peak_file', type=str, required=True,
                     help = 'Peak file [cage_peak.txt.gz]')
 
@@ -55,8 +55,8 @@ use_seq_len = peak_w_Size + inputSize - 200
 # OpenMP threads
 torch.set_num_threads(args.threads)
 
-# path for hg19
-hg19 = args.hg19
+# path for reference sequence
+ref = args.ref
 
 # load peak info file
 peak_data = pd.read_table(args.peak_file, header = None, sep = '\t', names = ['ID', 'peak'], dtype = {'ID': str, 'peak': int})
@@ -92,7 +92,7 @@ def truncate(seq, l_or_r, tr_size):
     else:
         return out
 
-def get_seq(st, en, l_or_r, chr, tr_size = use_seq_len, hg19 = hg19):
+def get_seq(st, en, l_or_r, chr, tr_size = use_seq_len, ref = ref):
     '''Get sequence and trancate it.
 
     Args:
@@ -108,7 +108,7 @@ def get_seq(st, en, l_or_r, chr, tr_size = use_seq_len, hg19 = hg19):
     if st < 0:
         return None
     else:
-        pipe1 = "samtools faidx {0} chr{1}:{2}-{3}".format(hg19, chr, st, en)
+        pipe1 = "samtools faidx {0} chr{1}:{2}-{3}".format(ref, chr, st, en)
         pipe2 = "grep -v \"^>\""
         seq = system(pipe1 + " | " + pipe2, shell = True).decode('utf-8').split("\n")
         seq = ''.join(seq[0:(len(seq) - 1)])
@@ -186,6 +186,11 @@ def encodeSeq(seq):
     mydict = {'A': np.asarray([1, 0, 0, 0]), 'G': np.asarray([0, 1, 0, 0]),
               'C': np.asarray([0, 0, 1, 0]), 'T': np.asarray([0, 0, 0, 1]),
               'N': np.asarray([0, 0, 0, 0]), 'H': np.asarray([0, 0, 0, 0]),
+              'U': np.asarray([0, 0, 0, 0]), 'R': np.asarray([0, 0, 0, 0]),
+              'Y': np.asarray([0, 0, 0, 0]), 'K': np.asarray([0, 0, 0, 0]),
+              'M': np.asarray([0, 0, 0, 0]), 'S': np.asarray([0, 0, 0, 0]),
+              'W': np.asarray([0, 0, 0, 0]), 'B': np.asarray([0, 0, 0, 0]),
+              'D': np.asarray([0, 0, 0, 0]), 'V': np.asarray([0, 0, 0, 0]),
               'a': np.asarray([1, 0, 0, 0]), 'g': np.asarray([0, 1, 0, 0]),
               'c': np.asarray([0, 0, 1, 0]), 't': np.asarray([0, 0, 0, 1]),
               'n': np.asarray([0, 0, 0, 0]), '-': np.asarray([0, 0, 0, 0])}

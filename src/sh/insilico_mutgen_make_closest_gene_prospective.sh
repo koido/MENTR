@@ -10,6 +10,8 @@
 #   arg3. input file name (CHR, POS, REF, ALT, ...; tsv file format)
 #   arg4. buffer region for ML (I set 100kb + 250 for safety; but later, I use only variants whose distance <=100kb)
 #   arg5. does the input file contain header? [T/F]
+#   arg6. parallel mode [T/F]
+#   arg7. number of CPU
 #
 #-------------------------------------------
 
@@ -21,6 +23,10 @@ in_bed=$2
 INFILE=$3
 buffer=$4
 header=$5
+parallel=$6
+if [ ${parallel} == "T" ]; then
+    n_cpu=$7
+fi
 
 # init
 out_cmn=${cmn_dir}/input/closest_gene; mkdir -p ${out_cmn}
@@ -97,7 +103,7 @@ function make_inputs(){
         fi
         rm -f ${out_cmn}/chr${chr}/${clstr_id}.bed
 
-        # clstr_ids list for deepsea & expecto
+        # clstr_ids list for later analyses
         if [ `zcat ${out_cmn}/chr${chr}/${clstr_id}.txt.gz | wc -l` -gt 0 ]; then
             # gzip, closest_file
             cat ${closest_file} | gzip -c > ${closest_file}.gz
@@ -113,35 +119,80 @@ function make_inputs(){
 }
 export -f make_inputs
 
-# make common temp file
-tmp_INFILE=${INFILE}_`date +"%Y%m%d%I%M%S"`
-if [ "${header}" == "T" ]; then
-    ${cat_cmd} ${INFILE} | tail -n +2 | awk '{printf $1"\t"$2-1"\t"$2"\n"}' | sort-bed - > ${tmp_INFILE}
-elif [ "${header}" == "F" ]; then
-    ${cat_cmd} ${INFILE} | awk '{printf $1"\t"$2-1"\t"$2"\n"}' | sort-bed - > ${tmp_INFILE}
-fi
-
-
 # RUN
-for chr in ${chrs[@]}
-do
-    if [ "${chr}" != "Y" ]; then
-        mkdir -p ${out_cmn}/chr${chr}
-        echo -e "Running variants on chr${chr} ..."
+if [ ${parallel} == "T" ]; then
 
-        cat ${tmp_INFILE} | awk -F"\t" -v chr=${chr} 'BEGIN{OFS="\t"} {if($1 == chr){print $0}}' | sort-bed - > ${tmp_INFILE}.chr${chr}
+    process_chr() {
+        chr=$1
+        out_cmn=$2
+        in_bed=$3
+        buffer=$4
+        INFILE=$5
+        cat_cmd=$6
+        header=$7
 
-        arg1s=`cat ${in_bed} | awk -F"\t" -v chr=chr${chr} '{if($1 == chr){print $5}}' | sort | uniq`
-        for arg1 in ${arg1s[@]}
-        do
-            make_inputs ${arg1} ${out_cmn} ${in_bed} ${buffer} ${INFILE} ${chr} ${cat_cmd} ${tmp_INFILE} ${header}
-        done
+        if [ "${chr}" != "Y" ]; then
+
+            # make common temp file
+            tmp_INFILE=${INFILE}_${chr}_`date +"%Y%m%d%I%M%S"`_${RANDOM}${RANDOM}
+
+            if [ "${header}" == "T" ]; then
+                ${cat_cmd} ${INFILE} | tail -n +2 | awk '{printf $1"\t"$2-1"\t"$2"\n"}' | sort-bed - > ${tmp_INFILE}
+            elif [ "${header}" == "F" ]; then
+                ${cat_cmd} ${INFILE} | awk '{printf $1"\t"$2-1"\t"$2"\n"}' | sort-bed - > ${tmp_INFILE}
+            fi
+
+            mkdir -p ${out_cmn}/chr${chr}
+            echo -e "Running variants on chr${chr} ..."
+
+            arg1s=`cat ${in_bed} | awk -F"\t" -v chr=chr${chr} '{if($1 == chr){print $5}}' | sort | uniq`
+            for arg1 in ${arg1s[@]}
+            do
+                make_inputs ${arg1} ${out_cmn} ${in_bed} ${buffer} ${INFILE} ${chr} ${cat_cmd} ${tmp_INFILE} ${header}
+            done
+
+            # clean
+            rm -f ${tmp_INFILE}
+        fi
+
+    }
+    export -f process_chr
+
+    parallel -j ${n_cpu} process_chr {} ${out_cmn} ${in_bed} ${buffer} ${INFILE} ${cat_cmd} ${header} ::: "${chrs[@]}"
+
+else
+
+    # make common temp file
+    tmp_INFILE=${INFILE}_`date +"%Y%m%d%I%M%S"`_${RANDOM}${RANDOM}
+    if [ "${header}" == "T" ]; then
+        ${cat_cmd} ${INFILE} | tail -n +2 | awk '{printf $1"\t"$2-1"\t"$2"\n"}' | sort-bed - > ${tmp_INFILE}
+    elif [ "${header}" == "F" ]; then
+        ${cat_cmd} ${INFILE} | awk '{printf $1"\t"$2-1"\t"$2"\n"}' | sort-bed - > ${tmp_INFILE}
     fi
-    # clean
-    rm -f ${tmp_INFILE}.chr${chr}
-done
 
-# clean
-rm -f ${tmp_INFILE}
+    # RUN
+    for chr in ${chrs[@]}
+    do
+        if [ "${chr}" != "Y" ]; then
+            mkdir -p ${out_cmn}/chr${chr}
+            echo -e "Running variants on chr${chr} ..."
+
+            cat ${tmp_INFILE} | awk -F"\t" -v chr=${chr} 'BEGIN{OFS="\t"} {if($1 == chr){print $0}}' | sort-bed - > ${tmp_INFILE}.chr${chr}
+
+            arg1s=`cat ${in_bed} | awk -F"\t" -v chr=chr${chr} '{if($1 == chr){print $5}}' | sort | uniq`
+            for arg1 in ${arg1s[@]}
+            do
+                make_inputs ${arg1} ${out_cmn} ${in_bed} ${buffer} ${INFILE} ${chr} ${cat_cmd} ${tmp_INFILE} ${header}
+            done
+
+            # clean
+            rm -f ${tmp_INFILE}.chr${chr}
+        fi
+    done
+
+    # clean
+    rm -f ${tmp_INFILE}
+
+fi
 
 echo -e "End.\n"

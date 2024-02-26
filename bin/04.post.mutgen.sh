@@ -39,13 +39,16 @@ while getopts ":o:j:dh" optKey; do
 done
 
 # required args
-if [ -z "${cmn_dir}" ]; then
-  echo "Error: -o is required"
-  help `basename $0`
-fi
+req_arg ${cmn_dir} "o"
 
 # INT check
 int_chk ${job_1gpu} "-j"
+
+# Show args
+echo -e "# == Args for 04.post.mutgen.sh =="
+echo -e "cmn_dir: ${cmn_dir}"
+echo -e "job_1gpu: ${job_1gpu}"
+echo -e ""
 
 # == RUN ==
 set -eu
@@ -72,10 +75,10 @@ function chk_output(){
 }
 export -f chk_output
 
-if [ `expr ${job_1gpu} - 1` -eq 0 ]; then
+if [ $((${job_1gpu} - 1)) -eq 0 ]; then
   max_j=0
 else
-  max_j=`expr ${job_1gpu} - 1`
+  max_j=$((${job_1gpu} - 1))
 fi
 
 for j in `seq 0 ${max_j}`

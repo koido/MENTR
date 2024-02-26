@@ -30,3 +30,22 @@ function int_chk(){
     help
   fi
 }
+
+# == Raise error for the required args ==
+function req_arg(){
+  var=$1
+  arg=$2
+  if [ -z "${var}" ]; then
+    echo "Error: -"${arg}" is required"
+    help `basename $0`
+  fi
+}
+
+# == Raise error for the missing file ==
+function err_miss(){
+  inf=$1
+  if [ ! -e ${inf} ]; then
+    echo -e "Error: ${inf} is missing. Please see the Resources in README."
+    exit 1
+  fi
+}

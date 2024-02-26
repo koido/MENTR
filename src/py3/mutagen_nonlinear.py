@@ -29,8 +29,8 @@ parser.add_argument('--max_InDel_size', type=int, default=250,
                     help="Maximum length of InDel. [bp]")
 parser.add_argument('--buffer', type=int, default=2000,
                     help="Buffer length for making left and righ seq [bp].")
-parser.add_argument('--hg19', required=True,
-                    help = "hg19 fasta file")
+parser.add_argument('--ref_fa', required=True,
+                    help = "Reference fasta file")
 parser.add_argument('--threads', type=int, default=5,
                     help="Number of threads (CPU).")
 parser.add_argument('--input_cols', nargs="+", default=['CHR', 'POS', 'REF', 'ALT'],
@@ -80,8 +80,8 @@ torch.set_num_threads(args.threads)
 # Number of bin (each side from peak); default 500
 n_bin_a_side = int(peak_w_Size / 200.0)
 
-# hg19
-genome = pyfasta.Fasta(args.hg19)
+# ref_fa
+genome = pyfasta.Fasta(args.ref_fa)
 
 # deepsea model
 model = load_lua(args.deepsea)
@@ -118,6 +118,11 @@ def encodeSeq(seq):
     mydict = {'A': np.asarray([1, 0, 0, 0]), 'G': np.asarray([0, 1, 0, 0]),
               'C': np.asarray([0, 0, 1, 0]), 'T': np.asarray([0, 0, 0, 1]),
               'N': np.asarray([0, 0, 0, 0]), 'H': np.asarray([0, 0, 0, 0]),
+              'U': np.asarray([0, 0, 0, 0]), 'R': np.asarray([0, 0, 0, 0]),
+              'Y': np.asarray([0, 0, 0, 0]), 'K': np.asarray([0, 0, 0, 0]),
+              'M': np.asarray([0, 0, 0, 0]), 'S': np.asarray([0, 0, 0, 0]),
+              'W': np.asarray([0, 0, 0, 0]), 'B': np.asarray([0, 0, 0, 0]),
+              'D': np.asarray([0, 0, 0, 0]), 'V': np.asarray([0, 0, 0, 0]),
               'a': np.asarray([1, 0, 0, 0]), 'g': np.asarray([0, 1, 0, 0]),
               'c': np.asarray([0, 0, 1, 0]), 't': np.asarray([0, 0, 0, 1]),
               'n': np.asarray([0, 0, 0, 0]), '-': np.asarray([0, 0, 0, 0])}
@@ -383,7 +388,14 @@ def compute_effects(seqEffects, all_models, nfeatures = nfeatures, peak_w_Size =
     Xtest = xgb.DMatrix(X)
     effect = np.zeros((1, len(all_models)))
     for j in range(len(all_models)):
-        effect[:, j] = all_models[j].predict(Xtest)
+        #effect[:, j] = all_models[j].predict(Xtest, ntree_limit = all_models[j].best_ntree_limit)
+        # see:
+        ## https://github.com/dmlc/xgboost/issues/805
+        ## https://stackoverflow.com/questions/43534219/xgboost-what-is-the-difference-among-bst-best-score-bst-best-iteration-and-bst
+        best_itr = int(all_models[j].attributes()["best_iteration"])
+        # num_parallel_tree was not set (default:1)
+        num_parallel_tree = 1
+        effect[:, j] = all_models[j].predict(Xtest, ntree_limit = (best_itr + 1) * num_parallel_tree)
     return effect
 
 # main

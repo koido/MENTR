@@ -5,14 +5,23 @@
 #
 #   Usage:
 #     quick.mutgen.sh [-i input_file] [-o cmn_dir] ...
-#       -i TEXT  input file [required]
+#       -i TEXT  input variant file [required]
 #       -o TEXT  output dir [required]
 #       -m TEXT  File of DeepSEA Beluga model (deepsea.beluga.2002.cpu) [required]
-#       -f TEXT  File of hg19.fa [required]
+#       -M TEXT  Directory for xgboost models
+#       -f TEXT  File of reference fasta [required]
 #       -t INT   Number of threads. [default:1]
 #       -w INT   window size to find variant-CAGE_ID pairs [bp] [default:100000]
-#       -b TEXT  input bed file to find variant-CAGE_ID pairs [default: ALL FANTOM5 CAGE IDs]
-#       -p TEXT  CAGE_ID list to find variant-CAGE_ID pairs. If many, please write IDs separated by semicolon [default: ALL FANTOM5 CAGE IDs]
+#       -b TEXT  input bed file [default: ALL FANTOM5 CAGE IDs]
+#                 col1: chr
+#                 col2: start (TSS) or (midpoint - 1)
+#                 col3: end (TSS or midpoint)
+#                 col4: strand [+/-/N]
+#                 col5: CAGE_peak_ID
+#       -p TEXT  CAGE_ID list to find variant-CAGE_ID pairs. If many, please write IDs separated by semicolon [default: ALL; -> All FANTOM5 CAGE IDs]
+#       -l TEXT  xgboost logisic regression model file
+#       -q TEXT  calibrated model list file
+#       -P TEXT  peak info file
 #       -c       CPU mode
 #       -h       Show help (this message)
 
@@ -35,9 +44,14 @@ window_n=100000
 in_bed=../resources/mutgen_cmn/F5.cage_cluster.hg19.win_100kb.sort.bed
 # CAGE ID list for evaluation
 cage_list=ALL
+# model parameters
+ml_dir=../
+model_list_log=${ml_dir}/resources/mutgen_cmn/modellist_xgb.txt
+calib_modelList=${ml_dir}/resources/mutgen_cmn/modellist_calib.txt
+peak_info=${ml_dir}/resources/mutgen_cmn/cage_peak.txt.gz
 
 # get
-while getopts ":i:o:m:f:t:w:b:p:ch" optKey; do
+while getopts ":i:o:m:M:f:t:w:b:p:l:q:P:ch" optKey; do
   case "${optKey}" in
     i)
       in_f="${OPTARG}";;
@@ -45,8 +59,10 @@ while getopts ":i:o:m:f:t:w:b:p:ch" optKey; do
       cmn_dir="${OPTARG}";;
     m)
       deepsea="${OPTARG}";;
+    M)
+      ml_dir="${OPTARG}";;
     f)
-      hg19_fa="${OPTARG}";;
+      ref_fa="${OPTARG}";;
     t)
       n_cpu="${OPTARG}";;
     w)
@@ -55,6 +71,12 @@ while getopts ":i:o:m:f:t:w:b:p:ch" optKey; do
       in_bed="${OPTARG}";;
     p)
       cage_list="${OPTARG}";;
+    l)
+      model_list_log="${OPTARG}";;
+    q)
+      calib_modelList="${OPTARG}";;
+    P)
+      peak_info="${OPTARG}";;
     c)
       cpu=1;;
     h)
@@ -69,48 +91,43 @@ while getopts ":i:o:m:f:t:w:b:p:ch" optKey; do
 done
 
 # required args
-if [ -z "${in_f}" ]; then
-  echo "Error: -i is required"
-  help
-fi
-if [ -z "${cmn_dir}" ]; then
-  echo "Error: -o is required"
-  help
-fi
-if [ -z "${deepsea}" ]; then
-  echo "Error: -m is required"
-  help
-fi
-if [ -z "${hg19_fa}" ]; then
-  echo "Error: -f is required"
-  help
-fi
+req_arg ${in_f} "i"
+req_arg ${cmn_dir} "o"
+req_arg ${deepsea} "m"
+req_arg ${ref_fa} "f"
 
 # INT check
 int_chk ${n_cpu} "-t"
 int_chk ${window_n} "-w"
 
 if [ ${cage_list} != "ALL" ]; then
+  original_in_bed=${in_bed}
+  # time stamp for file name
+  yymmddmmss=`date +%Y%m%d%H%M%S`_${RANDOM}${RANDOM}
   join -t$'\t' -1 5 \
     <(sort -t$'\t' -k5,5 ${in_bed}) \
     <(echo ${cage_list} | sed -e "s/;/\n/g" | sort) | \
-    awk -F"\t" 'BEGIN{OFS="\t"}{print $2,$3,$4,$5,$1}' > ${cmn_dir}/custom.F5.cage_cluster.hg19.win_100kb.sort.bed
-  in_bed=${cmn_dir}/custom.F5.cage_cluster.hg19.win_100kb.sort.bed
+    awk -F"\t" 'BEGIN{OFS="\t"}{print $2,$3,$4,$5,$1}' > ${in_bed}.${yymmddmmss}.tmp
+  in_bed=${in_bed}.${yymmddmmss}.tmp
   echo -e "\nUse custom bed file (${in_bed}) for finding variant-promoter/enhancer pairs.\n"
 fi
 
 echo -e "Preprocessing for getting variant-promoter/enhancer pairs...\n\n"
-bash ./01.get.pairs.sh -i ${in_f} -o ${cmn_dir} -w ${window_n} -b ${in_bed}
+bash ./01.get.pairs.sh -i ${in_f} -o ${cmn_dir} -w ${window_n} -b ${in_bed} -t ${n_cpu}
+
+if [ ${cage_list} != "ALL" ] && [ ${in_bed} != ${original_in_bed} ]; then
+  rm -f ${in_bed}
+fi
 
 echo -e "Preprocessing for collecting information of input files...\n\n"
 bash ./02.collect.inputs.sh -o ${cmn_dir}
 
 if [ ${cpu} -eq 1 ]; then
-  echo -e "Running in silico mutagenesis using only CPUs...\n\n"
-  bash ./03.run.mutgen.sh -o ${cmn_dir} -m ${deepsea} -f ${hg19_fa} -t ${n_cpu} -c
+  echo -e "Running in silico mutagenesis using only CPU(s)...\n\n"
+  bash ./03.run.mutgen.sh -o ${cmn_dir} -m ${deepsea} -M ${ml_dir} -f ${ref_fa} -t ${n_cpu} -l ${model_list_log} -q ${calib_modelList} -P ${peak_info} -c
 else
   echo -e "Running in silico mutagenesis...\n\n"
-  bash ./03.run.mutgen.sh -o ${cmn_dir} -m ${deepsea} -f ${hg19_fa} -t ${n_cpu}
+  bash ./03.run.mutgen.sh -o ${cmn_dir} -m ${deepsea} -M ${ml_dir} -f ${ref_fa} -t ${n_cpu} -l ${model_list_log} -q ${calib_modelList} -P ${peak_info}
 fi
 
 echo -e "Postprocessing...\n\n"

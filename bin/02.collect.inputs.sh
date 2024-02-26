@@ -47,22 +47,24 @@ while getopts ":o:g:j:dh" optKey; do
 done
 
 # required args
-if [ -z "${cmn_dir}" ]; then
-  echo "Error: -o is required"
-  help `basename $0`
-fi
+req_arg ${cmn_dir} "o"
 
 # INT check
 int_chk ${n_gpu} "-g"
 int_chk ${job_1gpu} "-j"
 
+# Show args
+echo -e "# == Args for 02.collect.inputs.sh =="
+echo -e "# cmn_dir: ${cmn_dir}"
+echo -e "# n_gpu: ${n_gpu}"
+echo -e "# job_1gpu: ${job_1gpu}"
+echo -e "# DryRun: ${DryRun}"
+echo -e ""
+
 # == Dry RUN ==
 set -eu
 if [ ${DryRun} -eq 1 ]; then
   echo -e "# ** Dry Run **"
-  echo -e "# cmn_dir: ${cmn_dir}"
-  echo -e "# n_gpu: ${n_gpu}"
-  echo -e "# job_1gpu: ${job_1gpu}"
   echo -e "bash ../src/sh/insilico_mutgen_prep_env.sh ${cmn_dir} ${n_gpu} ${job_1gpu}"
   exit 1
 fi
