@@ -21,6 +21,7 @@
 
  - Update shell scripts to increase freedom of input and output files
  - Set `ntree_limit` for XGBoost models to use the best iteration, which may change the results of in silico mutagenesis (but maybe better than before)
+    - This is activated when using the `--use_best_itr` option.
  - Rename: `seq2chrom_hg19_ref.py` -> `seq2chrom_ref.py`
  - Add:
     - `src/py3/custom/seq2chrom_res2hdf5_nocount.py`
@@ -33,7 +34,6 @@
         - Calibrate xgboost model without providing expression levels
 
 ### TODO:
- - Run `src/sh/debug/res2hdf5_lowmem.sh`
  - Update wiki
 
 

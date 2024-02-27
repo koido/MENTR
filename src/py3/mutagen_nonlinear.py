@@ -42,7 +42,8 @@ parser.add_argument('--calib_modelList', required=True,
 parser.add_argument('--modelList_prefix', required=True,
                     help="Prefix for the modelList and calib_modelList files (i.e. where MENTR is installed.)")
 parser.add_argument('--verbose', action="store_true")
-
+parser.add_argument('--use_best_itr', action="store_true",
+                    help="Use best iteration for xgboost model prediction. default: False")
 # input/output setting
 parser.add_argument('--multifiles', action="store_true",
                     help = 'If True, MENTR use use --inFiles; else use --inputfile, --geneFile, and --out_cmn.')
@@ -388,14 +389,15 @@ def compute_effects(seqEffects, all_models, nfeatures = nfeatures, peak_w_Size =
     Xtest = xgb.DMatrix(X)
     effect = np.zeros((1, len(all_models)))
     for j in range(len(all_models)):
-        #effect[:, j] = all_models[j].predict(Xtest, ntree_limit = all_models[j].best_ntree_limit)
-        # see:
-        ## https://github.com/dmlc/xgboost/issues/805
-        ## https://stackoverflow.com/questions/43534219/xgboost-what-is-the-difference-among-bst-best-score-bst-best-iteration-and-bst
-        best_itr = int(all_models[j].attributes()["best_iteration"])
-        # num_parallel_tree was not set (default:1)
-        num_parallel_tree = 1
-        effect[:, j] = all_models[j].predict(Xtest, ntree_limit = (best_itr + 1) * num_parallel_tree)
+        if args.use_best_itr:
+            ## https://github.com/dmlc/xgboost/issues/805
+            ## https://stackoverflow.com/questions/43534219/xgboost-what-is-the-difference-among-bst-best-score-bst-best-iteration-and-bst
+            best_itr = int(all_models[j].attributes()["best_iteration"])
+            # num_parallel_tree was not set (default:1)
+            num_parallel_tree = 1
+            effect[:, j] = all_models[j].predict(Xtest, ntree_limit = (best_itr + 1) * num_parallel_tree)
+        else:
+            effect[:, j] = all_models[j].predict(Xtest)
     return effect
 
 # main
