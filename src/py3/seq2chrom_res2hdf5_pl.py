@@ -45,6 +45,8 @@ parser.add_argument('--lowmem', action='store_true',
                     help="Prepare HDF5 file in low memory mode. This mode is useful for large data. Default: False.")
 parser.add_argument('--chunksize', type=int, default=10000,
                     help="Chunk size for low memory mode. Default: 10000")
+parser.add_argument('--polars', action='store_true',
+                    help="Use Polars instead of Pandas. Default: False")
 args = parser.parse_args()
 
 # make output dir
@@ -52,38 +54,77 @@ mkdir_p(args.output)
 
 # read resources
 
-## expression data
-Expr_head = pd.read_csv(args.expFile, delimiter = '\t', header=None, nrows = 1)
-_dtype = {'prmtrID': str}
-for i in range(1, Expr_head.shape[1]):
-    _dtype[Expr_head.iloc[0, i]] = 'float32'
+if args.polars:
+    raise NotImplementedError("Mode: Polars is not implemented yet.")
 
-Expr = pd.read_csv(args.expFile, delimiter = '\t', dtype = _dtype)
-Expr.rename(columns = {'prmtrID': 'clusterID'}, inplace = True)
+    # TODO:
 
-## Peak file
-Peak = pd.read_csv(args.peakFile, delimiter = '\t', names = ['clusterID', 'peak'], dtype = {'clusterID': str, 'peak': int}, header=None)
-## Cluster file
-_dtype = {'clusterID': str,
-          'clusterName': str,
-          'type': str,
-          'mask': str,
-          'F5_tag_count': int,
-          'geneNum': int,
-          'trnscptIDStr': str,
-          'geneIDStr': str,
-          'geneNameStr': str,
-          'geneClassStr': str,
-          'F5_anno': str}
-Cluster = pd.read_csv(args.clusterFile, delimiter = '\t', dtype = _dtype)
-assert Expr.shape[0] == Cluster.shape[0]
+    ## expression data
+    Expr_head = pl.read_csv(args.expFile, delimiter = '\t', header=None, n_rows = 1)
+    _dtype = {'prmtrID': str}
+    for i in range(1, Expr_head.shape[1]):
+        _dtype[Expr_head.iloc[0, i]] = 'float32'
+    
+    Expr = pl.read_csv(args.expFile, delimiter = '\t', dtype = _dtype)
+    Expr.rename(columns = {'prmtrID': 'clusterID'}, inplace = True)
 
-# Inner join between Cluster and Expr
-Cluster_cols = Cluster.columns
-Expr_cols = Expr.columns
-_Expr = pd.merge(Cluster, Expr, on = 'clusterID')
-assert _Expr.shape[0] == Cluster.shape[0]
-assert _Expr.shape[1] == (Cluster.shape[1] + Expr.shape[1] - 1)
+    ## Peak file
+    Peak = pl.read_csv(args.peakFile, delimiter = '\t', names = ['clusterID', 'peak'], dtype = {'clusterID': str, 'peak': int}, header=None)
+    ## Cluster file
+    _dtype = {'clusterID': str,
+            'clusterName': str,
+            'type': str,
+            'mask': str,
+            'F5_tag_count': int,
+            'geneNum': int,
+            'trnscptIDStr': str,
+            'geneIDStr': str,
+            'geneNameStr': str,
+            'geneClassStr': str,
+            'F5_anno': str}
+    Cluster = pl.read_csv(args.clusterFile, delimiter = '\t', dtype = _dtype)
+    assert Expr.shape[0] == Cluster.shape[0]
+
+    # Inner join between Cluster and Expr
+    Cluster_cols = Cluster.columns
+    Expr_cols = Expr.columns
+    _Expr = Cluster.join(Expr, on = 'clusterID', how = 'inner')
+    assert _Expr.shape[0] == Cluster.shape[0]
+    assert _Expr.shape[1] == (Cluster.shape[1] + Expr.shape[1] - 1)    
+
+else:
+    ## expression data
+    Expr_head = pd.read_csv(args.expFile, delimiter = '\t', header=None, nrows = 1)
+    _dtype = {'prmtrID': str}
+    for i in range(1, Expr_head.shape[1]):
+        _dtype[Expr_head.iloc[0, i]] = 'float32'
+
+    Expr = pd.read_csv(args.expFile, delimiter = '\t', dtype = _dtype)
+    Expr.rename(columns = {'prmtrID': 'clusterID'}, inplace = True)
+
+    ## Peak file
+    Peak = pd.read_csv(args.peakFile, delimiter = '\t', names = ['clusterID', 'peak'], dtype = {'clusterID': str, 'peak': int}, header=None)
+    ## Cluster file
+    _dtype = {'clusterID': str,
+            'clusterName': str,
+            'type': str,
+            'mask': str,
+            'F5_tag_count': int,
+            'geneNum': int,
+            'trnscptIDStr': str,
+            'geneIDStr': str,
+            'geneNameStr': str,
+            'geneClassStr': str,
+            'F5_anno': str}
+    Cluster = pd.read_csv(args.clusterFile, delimiter = '\t', dtype = _dtype)
+    assert Expr.shape[0] == Cluster.shape[0]
+
+    # Inner join between Cluster and Expr
+    Cluster_cols = Cluster.columns
+    Expr_cols = Expr.columns
+    _Expr = pd.merge(Cluster, Expr, on = 'clusterID')
+    assert _Expr.shape[0] == Cluster.shape[0]
+    assert _Expr.shape[1] == (Cluster.shape[1] + Expr.shape[1] - 1)
 
 # Find NA rows in chromatin effects
 def find_na(x):
@@ -221,6 +262,11 @@ if args.lowmem:
         
         # Update index
         idx_start += chunked_size
+
+elif args.polars:
+    raise NotImplementedError("Mode: Polars is not implemented yet.")
+
+    # TODO:
 
 else:
     Xreducedall = pd.read_csv(args.chromFile, dtype = 'float32', delimiter = '\t', header=None)
