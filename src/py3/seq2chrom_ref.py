@@ -31,6 +31,8 @@ parser.add_argument('--ref', type=str, required=True,
                     help='File location for reference sequence')
 parser.add_argument('--peak_file', type=str, required=True,
                     help = 'Peak file [cage_peak.txt.gz]')
+parser.add_argument('--samtools', type=str, default='samtools',
+                    help = 'samtools. Tested: 1.3.1')
 
 # For DeepSEA
 parser.add_argument('--model', type=str, required=True,
@@ -92,7 +94,7 @@ def truncate(seq, l_or_r, tr_size):
     else:
         return out
 
-def get_seq(st, en, l_or_r, chr, tr_size = use_seq_len, ref = ref):
+def get_seq(st, en, l_or_r, chr, samtools, tr_size = use_seq_len, ref = ref):
     '''Get sequence and trancate it.
 
     Args:
@@ -108,7 +110,7 @@ def get_seq(st, en, l_or_r, chr, tr_size = use_seq_len, ref = ref):
     if st < 0:
         return None
     else:
-        pipe1 = "samtools faidx {0} chr{1}:{2}-{3}".format(ref, chr, st, en)
+        pipe1 = "{0} faidx {1} chr{2}:{3}-{4}".format(samtools, ref, chr, st, en)
         pipe2 = "grep -v \"^>\""
         seq = system(pipe1 + " | " + pipe2, shell = True).decode('utf-8').split("\n")
         seq = ''.join(seq[0:(len(seq) - 1)])
@@ -267,9 +269,9 @@ def compute_effects(seqEffects, nfeatures = nfeatures, peak_w_Size = peak_w_Size
                                     np.repeat(Xreducedall[j], nfeatures, axis=1) for j in range(len(Xreducedall))])
     return X
 
-def calc_eff(seqChromEffects_list, left_st, left_en, right_st, right_en, chr, nfeatures = nfeatures):
-    left_seq = get_seq(left_st, left_en, 'left', chr)
-    right_seq = get_seq(right_st, right_en, 'right', chr)
+def calc_eff(seqChromEffects_list, left_st, left_en, right_st, right_en, chr, samtools, nfeatures = nfeatures):
+    left_seq = get_seq(left_st, left_en, 'left', chr, samtools)
+    right_seq = get_seq(right_st, right_en, 'right', chr, samtools)
     if left_seq is None or right_seq is None:
         seqEffects = []
         for _i in range(n_bin_a_side * 2):
@@ -297,7 +299,7 @@ if __name__ == '__main__':
         chr = peak_data.iloc[i,0].split(':')[0].replace('chr', '')
         peak = peak_data.iloc[i,1]
         left_st, left_en, right_st, right_en = get_left_right_pos(peak)
-        seqChromEffects_list = calc_eff(seqChromEffects_list, left_st, left_en, right_st, right_en, chr)
+        seqChromEffects_list = calc_eff(seqChromEffects_list, left_st, left_en, right_st, right_en, chr, args.samtools)
 
     # write output (reduced chrom effects, txt.gz)
     np.savetxt(args.output + '.peak_window_' + str(peak_w_Size) + '.reduced_wo_strand.txt.gz', np.array(seqChromEffects_list).reshape([len(peak_data), nfeatures*5]), delimiter = '\t')
