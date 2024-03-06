@@ -37,7 +37,7 @@ parser.add_argument('--chromFile', required=True,
                     help = 'Reduced X file from seq2chrom_ref.py.')
 parser.add_argument('--peakFile', required=True,
                     help = 'Information of --chromFile. The order must be the same with the chromFile')
-parser.add_argument('--expFile', required=True,
+parser.add_argument('--expFile', required=False,
                     help = 'CAGE transcriptome data (TSV); 1st column is cluster ID (the header must be clusterID) and 2nd- columns are normalized but antilogarithm expression levels')
 parser.add_argument('--clusterFile', required=True,
                     help = 'CAGE cluster information. Default: F5.cage_cluster.hg19.info.tsv.gz')
@@ -201,24 +201,30 @@ if args.lowmem:
             with h5py.File(args.output + 'X_Y.h5', 'a') as f:
                 # train
                 ## X
-                f['train']['X'].resize((f['train']['X'].shape[0] + X_train_chunk.shape[0]), axis = 0)
-                f['train']['X'][-X_train_chunk.shape[0]:] = X_train_chunk
+                if X_train_chunk.shape[0] > 0:
+                    f['train']['X'].resize((f['train']['X'].shape[0] + X_train_chunk.shape[0]), axis = 0)
+                    f['train']['X'][-X_train_chunk.shape[0]:] = X_train_chunk
                 # test
                 ## X
-                f['test']['X'].resize((f['test']['X'].shape[0] + X_test_chunk.shape[0]), axis = 0)
-                f['test']['X'][-X_test_chunk.shape[0]:] = X_test_chunk
+                if X_test_chunk.shape[0] > 0:
+                    f['test']['X'].resize((f['test']['X'].shape[0] + X_test_chunk.shape[0]), axis = 0)
+                    f['test']['X'][-X_test_chunk.shape[0]:] = X_test_chunk
                 # others
                 ## X
-                f['other']['X'].resize((f['other']['X'].shape[0] + X_other_chunk.shape[0]), axis = 0)
-                f['other']['X'][-X_other_chunk.shape[0]:] = X_other_chunk
+                if X_other_chunk.shape[0] > 0:
+                    f['other']['X'].resize((f['other']['X'].shape[0] + X_other_chunk.shape[0]), axis = 0)
+                    f['other']['X'][-X_other_chunk.shape[0]:] = X_other_chunk
                 if not args.no_exp:
                     ## y
-                    f['train']['y'].resize((f['train']['y'].shape[0] + Y_train_chunk.shape[0]), axis = 0)
-                    f['train']['y'][-Y_train_chunk.shape[0]:] = Y_train_chunk
-                    f['test']['y'].resize((f['test']['y'].shape[0] + Y_test_chunk.shape[0]), axis = 0)
-                    f['test']['y'][-Y_test_chunk.shape[0]:] = Y_test_chunk
-                    f['other']['y'].resize((f['other']['y'].shape[0] + Y_other_chunk.shape[0]), axis = 0)
-                    f['other']['y'][-Y_other_chunk.shape[0]:] = Y_other_chunk
+                    if Y_train_chunk.shape[0] > 0:
+                        f['train']['y'].resize((f['train']['y'].shape[0] + Y_train_chunk.shape[0]), axis = 0)
+                        f['train']['y'][-Y_train_chunk.shape[0]:] = Y_train_chunk
+                    if Y_test_chunk.shape[0] > 0:
+                        f['test']['y'].resize((f['test']['y'].shape[0] + Y_test_chunk.shape[0]), axis = 0)
+                        f['test']['y'][-Y_test_chunk.shape[0]:] = Y_test_chunk
+                    if Y_other_chunk.shape[0] > 0:
+                        f['other']['y'].resize((f['other']['y'].shape[0] + Y_other_chunk.shape[0]), axis = 0)
+                        f['other']['y'][-Y_other_chunk.shape[0]:] = Y_other_chunk
         
         # Save info, X column, Y column, common rows as txt.gz file
         if idx_start == 0:
