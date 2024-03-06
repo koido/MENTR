@@ -104,7 +104,7 @@ if not args.no_exp:
     assert _Expr.shape[1] == (Cluster.shape[1] + Expr.shape[1] - 1)
 else:
     _Expr = Cluster
-    Expr_cols = _Expr.columns
+    Expr_cols = ['clusterID']
 
 # Find NA rows in chromatin effects
 def find_na(x):
