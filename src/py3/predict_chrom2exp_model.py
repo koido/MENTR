@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Train MENTR
+"""Predict MENTR using REF
 """
 import argparse
 import xgboost as xgb
@@ -140,128 +140,9 @@ else:
     Y_train_col = pd.read_csv(args.infile_dir + '/Y_train_col.txt.gz', dtype = 'str', delimiter = '\t', header=None).values.reshape(-1).tolist()
     use_Y_train_col = [i for i, x in enumerate(Y_train_col) if x == args.CAGE_lib_ID]
 
-# read resources for training
-if args.verbose:
-    print("Loading X train...")
-X_train = hdf5_f['train']['X'].value
-
-if args.verbose:
-    print("Loading y train...")
-
-if args.CAGE_lib_ID is None:
-    y_train = hdf5_f['train']['y'][:, use_Y_train_col].mean(axis = 1)
-else:
-    y_train = hdf5_f['train']['y'][:, use_Y_train_col]
 info_train = pd.read_csv(args.infile_dir + '/info_train.txt.gz', dtype = 'str', delimiter = '\t')
 
-assert X_train.shape[0] == y_train.shape[0]
-assert X_train.shape[0] == info_train.shape[0]
-
-# cluster type-based selection
-if args.filterStr == 'promoter':
-    filt_train = np.asarray(info_train.loc[:, 'type'].isin(['promoter']))
-elif args.filterStr == 'enhancer':
-    filt_train = np.asarray(info_train.loc[:, 'type'].isin(['enhancer']))
-elif args.filterStr == 'all':
-    filt_train = np.asarray(info_train.loc[:, 'type'].isin(['promoter', 'enhancer']))
-    assert filt_train.shape[0] == info_train.shape[0]
-else:
-    raise ValueError('filterStr has to be one of all, promoter, enhancer')
-
-if args.logistic:
-    # gene QC
-    filt_train = filt_train * \
-        np.isfinite(y_train).reshape(-1)
-else:
-    # gene QC
-    filt_train = filt_train * \
-        np.isfinite(np.log(y_train + args.pseudocount)).reshape(-1) * \
-        np.isfinite(y_train).reshape(-1)
-
-# Filtering X_train and y_train by the above QC
-if args.verbose:
-    print("Updating X_train and y_train.")
-    print("Shape of X_train (before filtering):", X_train.shape)
-    print("Shape of y_train (before filtering):", y_train.shape)
-X_train = X_train[filt_train, :]
-y_train = y_train[filt_train]
-
-if args.verbose:
-    print("Shape of X_train (after filtering):", X_train.shape)
-    print("Shape of y_train (after filtering):", y_train.shape)
-
-# split train data into new train and validation data for tuning [80%, 20%]
-indices = np.random.permutation(X_train.shape[0])
-train_idx, valid_idx = indices[:int(len(indices) * 0.8)], indices[int(len(indices) * 0.8):]
-X_train_train = X_train[train_idx]
-y_train_train = y_train[train_idx]
-X_train_valid = X_train[valid_idx]
-y_train_valid = y_train[valid_idx]
-
-if args.logistic:
-    # binarize
-    if args.verbose:
-        print("Binarizing...")
-    y_train_train = (y_train_train > 0).astype(int)
-    y_train_valid = (y_train_valid > 0).astype(int)
-
-if args.verbose:
-    print("Converting DMatrix...")
-
-# make DMatrix
-dtrain = xgb.DMatrix(X_train_train)
-dtest = xgb.DMatrix(X_train_valid)
-
-if args.logistic:
-    # make y
-    dtrain.set_label(y_train_train)
-    dtest.set_label(y_train_valid)
-else:
-    # make y
-    dtrain.set_label(np.log(y_train_train + args.pseudocount))
-    dtest.set_label(np.log(y_train_valid + args.pseudocount))
-
-# setting
-evallist = [(dtrain, 'train'), (dtest, 'eval')]
-
-# training xgboost
-def training_xgb(l1, l2, eta, max_depth = None, args = args, dtrain = dtrain, logistic = args.logistic, booster = booster, evalauc = args.evalauc):
-    param = {'booster': booster,
-             'nthread': args.threads,
-             'seed': args.seed,
-             'base_score': args.base_score,
-             'alpha': l1,
-             'lambda': l2,
-             'eta': eta}
-    if logistic:
-        param['objective'] = 'binary:logistic'
-    else:
-        param['objective'] = 'reg:linear'
-    if booster == 'gbtree':
-        param['max_depth'] = max_depth
-    if evalauc:
-        param['eval_metric'] = 'auc'
-
-    # run
-    evals_result = {}
-    if evalauc == False:
-        bst = xgb.train(param, dtrain, args.num_round, evallist, evals_result = evals_result, early_stopping_rounds = args.early_stopping_rounds)
-    else:
-        bst = xgb.train(param, dtrain, args.num_round, evallist, evals_result = evals_result, early_stopping_rounds = args.early_stopping_rounds, maximize=True)
-    return bst, evals_result
-
-# No tuning
-if args.verbose:
-    print("No tuning.")
-
-# default parameters
-default_param = {
-    'l1': args.l1, # alpha
-    'l2': args.l2, # lambda
-    'eta': args.eta, # learning rate
-}
-
-# save ...
+# reconstract cmn_header
 cmn_header = args.out_dir + '/' + args.out_suffix + \
     booster + '_' + objective_name
 if args.CAGE_lib_ID is None:
@@ -285,39 +166,14 @@ if args.logistic == False:
 
 # gbtree mode
 if booster == 'gbtree':
-    default_param['max_depth'] = int(args.max_depth)
     cmn_header = cmn_header + '_max_depth.' + str(int(args.max_depth))
-else:
-    default_param['max_depth'] = None
 
 if args.evalauc:
     cmn_header = cmn_header + '_evalauc'
 
-# train using the default param
-bst, evals_result = training_xgb(l1 = default_param['l1'], l2 = default_param['l2'],
-                                 eta = default_param['eta'], max_depth = default_param['max_depth'])
-
-# save model
-outfile_path = cmn_header + '_model'
-bst.save_model(outfile_path + '.save')
-bst.dump_model(outfile_path + '.dump')
-
-# save prediction accuracies
-if args.evalauc:
-    out_auc = pd.DataFrame({'train': evals_result['train']['auc'],
-                            'test': evals_result['eval']['auc']})
-    out_auc.to_csv(cmn_header + '.auc.txt.gz', header=True, index=False, sep='\t', compression = 'gzip')
-elif args.logistic:
-    out_error = pd.DataFrame({'train': evals_result['train']['error'],
-                            'test': evals_result['eval']['error']})
-    out_error.to_csv(cmn_header + '.error.txt.gz', header=True, index=False, sep='\t', compression = 'gzip')
-else:
-    out_rmse = pd.DataFrame({'train': evals_result['train']['rmse'],
-                            'test': evals_result['eval']['rmse']})
-    out_rmse.to_csv(cmn_header + '.rmse.txt.gz', header=True, index=False, sep='\t', compression = 'gzip')
-
-if args.verbose:
-    print("Training is end.")
+# load model
+bst = xgb.Booster({'nthread': args.threads})
+bst.load_model(cmn_header + '_model' + '.save')
 
 # save expr and its prediction for all data in a file
 for type in ['train', 'test', 'other']:
@@ -351,7 +207,14 @@ for type in ['train', 'test', 'other']:
     dall = xgb.DMatrix(X)
     # infer
     if args.use_best_itr:
-        ypred = bst.predict(dall, ntree_limit = bst.best_ntree_limit)
+        ## https://github.com/dmlc/xgboost/issues/805
+        ## https://stackoverflow.com/questions/43534219/xgboost-what-is-the-difference-among-bst-best-score-bst-best-iteration-and-bst
+        best_itr = int(bst.attributes()["best_iteration"])
+        # num_parallel_tree was not set (default:1)
+        num_parallel_tree = 1
+        ypred = bst.predict(dall, ntree_limit = (best_itr + 1) * num_parallel_tree)
+        if type == 'train':
+            print("Best iteration (1-based): {}".format((best_itr + 1) * num_parallel_tree))
         out_name = cmn_header + '_type.' + type + '.best_itr.expr_pred.txt.gz'
     else:
         ypred = bst.predict(dall)
@@ -362,6 +225,7 @@ for type in ['train', 'test', 'other']:
         info['log_expr'] = y
     info['pred'] = ypred
     # write
+   
     info.to_csv(out_name, header=True, index=False, sep='\t', compression = 'gzip')
 
 print('=== Finish ===')
