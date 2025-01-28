@@ -37,53 +37,74 @@ parser.add_argument('--chromFile', required=True,
                     help = 'Reduced X file from seq2chrom_ref.py.')
 parser.add_argument('--peakFile', required=True,
                     help = 'Information of --chromFile. The order must be the same with the chromFile')
-parser.add_argument('--expFile', required=True,
+parser.add_argument('--expFile', required=False,
                     help = 'CAGE transcriptome data (TSV); 1st column is cluster ID (the header must be clusterID) and 2nd- columns are normalized but antilogarithm expression levels')
 parser.add_argument('--clusterFile', required=True,
-                    help = 'CAGE cluster information. [F5.cage_cluster.hg19.info.tsv.gz]')
+                    help = 'CAGE cluster information. Default: F5.cage_cluster.hg19.info.tsv.gz')
 parser.add_argument('--lowmem', action='store_true',
                     help="Prepare HDF5 file in low memory mode. This mode is useful for large data. Default: False.")
 parser.add_argument('--chunksize', type=int, default=10000,
                     help="Chunk size for low memory mode. Default: 10000")
+parser.add_argument('--mini_cluster', action='store_true',
+                    help="Assume that clusterFile (tsv) contains only two columns (clusterID and type). Default: False.")
+parser.add_argument('--noheader_cluster', action='store_true',
+                    help="Assume that clusterFile does not have header. Default: False.; only applicable with --mini_cluster")
+parser.add_argument('--no_exp', action='store_true',
+                    help="No Expression data. Default: False.; This option ignores --expFile.")
 args = parser.parse_args()
+
+assert not (args.noheader_cluster and not args.mini_cluster), "--noheader_cluster option requires --mini_cluster to be true."
 
 # make output dir
 mkdir_p(args.output)
 
 # read resources
 
-## expression data
-Expr_head = pd.read_csv(args.expFile, delimiter = '\t', header=None, nrows = 1)
-_dtype = {'prmtrID': str}
-for i in range(1, Expr_head.shape[1]):
-    _dtype[Expr_head.iloc[0, i]] = 'float32'
-
-Expr = pd.read_csv(args.expFile, delimiter = '\t', dtype = _dtype)
-Expr.rename(columns = {'prmtrID': 'clusterID'}, inplace = True)
-
 ## Peak file
 Peak = pd.read_csv(args.peakFile, delimiter = '\t', names = ['clusterID', 'peak'], dtype = {'clusterID': str, 'peak': int}, header=None)
 ## Cluster file
-_dtype = {'clusterID': str,
-          'clusterName': str,
-          'type': str,
-          'mask': str,
-          'F5_tag_count': int,
-          'geneNum': int,
-          'trnscptIDStr': str,
-          'geneIDStr': str,
-          'geneNameStr': str,
-          'geneClassStr': str,
-          'F5_anno': str}
-Cluster = pd.read_csv(args.clusterFile, delimiter = '\t', dtype = _dtype)
-assert Expr.shape[0] == Cluster.shape[0]
-
-# Inner join between Cluster and Expr
+if args.mini_cluster:
+    _dtype = {'clusterID': str,
+              'type': str}
+    if args.noheader_cluster:
+        Cluster = pd.read_csv(args.clusterFile, delimiter = '\t', dtype = _dtype, header=None, names = ['clusterID', 'type'])
+    else:
+        Cluster = pd.read_csv(args.clusterFile, delimiter = '\t', dtype = _dtype)
+else:
+    # Pre-defined F5 cluster file
+    _dtype = {'clusterID': str,
+            'clusterName': str,
+            'type': str,
+            'mask': str,
+            'F5_tag_count': int,
+            'geneNum': int,
+            'trnscptIDStr': str,
+            'geneIDStr': str,
+            'geneNameStr': str,
+            'geneClassStr': str,
+            'F5_anno': str}
+    Cluster = pd.read_csv(args.clusterFile, delimiter = '\t', dtype = _dtype)
 Cluster_cols = Cluster.columns
-Expr_cols = Expr.columns
-_Expr = pd.merge(Cluster, Expr, on = 'clusterID')
-assert _Expr.shape[0] == Cluster.shape[0]
-assert _Expr.shape[1] == (Cluster.shape[1] + Expr.shape[1] - 1)
+
+if not args.no_exp:
+    ## expression data
+    Expr_head = pd.read_csv(args.expFile, delimiter = '\t', header=None, nrows = 1)
+    _dtype = {'prmtrID': str}
+    for i in range(1, Expr_head.shape[1]):
+        _dtype[Expr_head.iloc[0, i]] = 'float32'
+
+    Expr = pd.read_csv(args.expFile, delimiter = '\t', dtype = _dtype)
+    Expr.rename(columns = {'prmtrID': 'clusterID'}, inplace = True)
+
+    # Inner join between Cluster and Expr
+    assert Expr.shape[0] == Cluster.shape[0]
+    Expr_cols = Expr.columns
+    _Expr = pd.merge(Cluster, Expr, on = 'clusterID')
+    assert _Expr.shape[0] == Cluster.shape[0]
+    assert _Expr.shape[1] == (Cluster.shape[1] + Expr.shape[1] - 1)
+else:
+    _Expr = Cluster
+    Expr_cols = ['clusterID']
 
 # Find NA rows in chromatin effects
 def find_na(x):
@@ -150,14 +171,15 @@ if args.lowmem:
         testind_chunk = np.asarray(all_chunk.loc[:, 'chr'] == 'chr8')
         otherind_chunk = np.asarray(all_chunk.loc[:, 'chr'].isin(['chrX', 'chrY', 'chrM']))
         X_train_chunk = all_chunk[Xreducedall_chunk_cols].loc[trainind_chunk]
-        Y_train_chunk = all_chunk[Expr_cols[1:]].loc[trainind_chunk]
         info_train_chunk = all_chunk.drop(columns=Xreducedall_chunk_cols).drop(columns=Expr_cols[1:]).loc[trainind_chunk]
         X_test_chunk = all_chunk[Xreducedall_chunk_cols].loc[testind_chunk]
-        Y_test_chunk = all_chunk[Expr_cols[1:]].loc[testind_chunk]
         info_test_chunk = all_chunk.drop(columns=Xreducedall_chunk_cols).drop(columns=Expr_cols[1:]).loc[testind_chunk]
         X_other_chunk = all_chunk[Xreducedall_chunk_cols].loc[otherind_chunk]
-        Y_other_chunk = all_chunk[Expr_cols[1:]].loc[otherind_chunk]
         info_other_chunk = all_chunk.drop(columns=Xreducedall_chunk_cols).drop(columns=Expr_cols[1:]).loc[otherind_chunk]
+        if not args.no_exp:
+            Y_train_chunk = all_chunk[Expr_cols[1:]].loc[trainind_chunk]
+            Y_test_chunk = all_chunk[Expr_cols[1:]].loc[testind_chunk]
+            Y_other_chunk = all_chunk[Expr_cols[1:]].loc[otherind_chunk]
 
         # Save X and Y as hdf5 format (save object is not torch object)
         if idx_start == 0:
@@ -165,47 +187,54 @@ if args.lowmem:
                 # train
                 f.create_group('train')
                 f['train'].create_dataset('X', data = X_train_chunk, compression = "gzip", compression_opts = 9, maxshape=(None, X_train_chunk.shape[1]))
-                f['train'].create_dataset('y', data = Y_train_chunk, compression = "gzip", compression_opts = 9, maxshape=(None, Y_train_chunk.shape[1]))
                 # test
                 f.create_group('test')
                 f['test'].create_dataset('X', data = X_test_chunk, compression = "gzip", compression_opts = 9, maxshape=(None, X_test_chunk.shape[1]))
-                f['test'].create_dataset('y', data = Y_test_chunk, compression = "gzip", compression_opts = 9, maxshape=(None, Y_test_chunk.shape[1]))
                 # others
                 f.create_group('other')
                 f['other'].create_dataset('X', data = X_other_chunk, compression = "gzip", compression_opts = 9, maxshape=(None, X_other_chunk.shape[1]))
-                f['other'].create_dataset('y', data = Y_other_chunk, compression = "gzip", compression_opts = 9, maxshape=(None, Y_other_chunk.shape[1]))
+                if not args.no_exp:
+                    f['train'].create_dataset('y', data = Y_train_chunk, compression = "gzip", compression_opts = 9, maxshape=(None, Y_train_chunk.shape[1]))
+                    f['test'].create_dataset('y', data = Y_test_chunk, compression = "gzip", compression_opts = 9, maxshape=(None, Y_test_chunk.shape[1]))
+                    f['other'].create_dataset('y', data = Y_other_chunk, compression = "gzip", compression_opts = 9, maxshape=(None, Y_other_chunk.shape[1]))
         else:
             with h5py.File(args.output + 'X_Y.h5', 'a') as f:
                 # train
                 ## X
-                f['train']['X'].resize((f['train']['X'].shape[0] + X_train_chunk.shape[0]), axis = 0)
-                f['train']['X'][-X_train_chunk.shape[0]:] = X_train_chunk
-                ## y
-                f['train']['y'].resize((f['train']['y'].shape[0] + Y_train_chunk.shape[0]), axis = 0)
-                f['train']['y'][-Y_train_chunk.shape[0]:] = Y_train_chunk
+                if X_train_chunk.shape[0] > 0:
+                    f['train']['X'].resize((f['train']['X'].shape[0] + X_train_chunk.shape[0]), axis = 0)
+                    f['train']['X'][-X_train_chunk.shape[0]:] = X_train_chunk
                 # test
                 ## X
-                f['test']['X'].resize((f['test']['X'].shape[0] + X_test_chunk.shape[0]), axis = 0)
-                f['test']['X'][-X_test_chunk.shape[0]:] = X_test_chunk
-                ## y
-                f['test']['y'].resize((f['test']['y'].shape[0] + Y_test_chunk.shape[0]), axis = 0)
-                f['test']['y'][-Y_test_chunk.shape[0]:] = Y_test_chunk
+                if X_test_chunk.shape[0] > 0:
+                    f['test']['X'].resize((f['test']['X'].shape[0] + X_test_chunk.shape[0]), axis = 0)
+                    f['test']['X'][-X_test_chunk.shape[0]:] = X_test_chunk
                 # others
                 ## X
-                f['other']['X'].resize((f['other']['X'].shape[0] + X_other_chunk.shape[0]), axis = 0)
-                f['other']['X'][-X_other_chunk.shape[0]:] = X_other_chunk
-                ## y
-                f['other']['y'].resize((f['other']['y'].shape[0] + Y_other_chunk.shape[0]), axis = 0)
-                f['other']['y'][-Y_other_chunk.shape[0]:] = Y_other_chunk
+                if X_other_chunk.shape[0] > 0:
+                    f['other']['X'].resize((f['other']['X'].shape[0] + X_other_chunk.shape[0]), axis = 0)
+                    f['other']['X'][-X_other_chunk.shape[0]:] = X_other_chunk
+                if not args.no_exp:
+                    ## y
+                    if Y_train_chunk.shape[0] > 0:
+                        f['train']['y'].resize((f['train']['y'].shape[0] + Y_train_chunk.shape[0]), axis = 0)
+                        f['train']['y'][-Y_train_chunk.shape[0]:] = Y_train_chunk
+                    if Y_test_chunk.shape[0] > 0:
+                        f['test']['y'].resize((f['test']['y'].shape[0] + Y_test_chunk.shape[0]), axis = 0)
+                        f['test']['y'][-Y_test_chunk.shape[0]:] = Y_test_chunk
+                    if Y_other_chunk.shape[0] > 0:
+                        f['other']['y'].resize((f['other']['y'].shape[0] + Y_other_chunk.shape[0]), axis = 0)
+                        f['other']['y'][-Y_other_chunk.shape[0]:] = Y_other_chunk
         
         # Save info, X column, Y column, common rows as txt.gz file
         if idx_start == 0:
             pd.DataFrame(X_train_chunk.columns).to_csv(args.output + 'X_train_col.txt.gz', header = False, compression = 'gzip', sep = "\t", index=False)
             pd.DataFrame(X_test_chunk.columns).to_csv(args.output + 'X_test_col.txt.gz', header = False, compression = 'gzip', sep = "\t", index=False)
             pd.DataFrame(X_other_chunk.columns).to_csv(args.output + 'X_other_col.txt.gz', header = False, compression = 'gzip', sep = "\t", index=False)
-            pd.DataFrame(Y_train_chunk.columns).to_csv(args.output + 'Y_train_col.txt.gz', header = False, compression = 'gzip', sep = "\t", index=False)
-            pd.DataFrame(Y_test_chunk.columns).to_csv(args.output + 'Y_test_col.txt.gz', header = False, compression = 'gzip', sep = "\t", index=False)
-            pd.DataFrame(Y_other_chunk.columns).to_csv(args.output + 'Y_other_col.txt.gz', header = False, compression = 'gzip', sep = "\t", index=False)
+            if not args.no_exp:
+                pd.DataFrame(Y_train_chunk.columns).to_csv(args.output + 'Y_train_col.txt.gz', header = False, compression = 'gzip', sep = "\t", index=False)
+                pd.DataFrame(Y_test_chunk.columns).to_csv(args.output + 'Y_test_col.txt.gz', header = False, compression = 'gzip', sep = "\t", index=False)
+                pd.DataFrame(Y_other_chunk.columns).to_csv(args.output + 'Y_other_col.txt.gz', header = False, compression = 'gzip', sep = "\t", index=False)
 
         info_train = info_train_chunk if 'info_train' not in locals() else pd.concat([info_train, info_train_chunk])
         info_test = info_test_chunk if 'info_test' not in locals() else pd.concat([info_test, info_test_chunk])
@@ -260,37 +289,40 @@ else:
     testind = np.asarray(all.loc[:, 'chr'] == 'chr8')
     otherind = np.asarray(all.loc[:, 'chr'].isin(['chrX', 'chrY', 'chrM']))
     X_train = all[Xreducedall_cols].loc[trainind]
-    Y_train = all[Expr_cols[1:]].loc[trainind]
     info_train = all.drop(columns=Xreducedall_cols).drop(columns=Expr_cols[1:]).loc[trainind]
     X_test = all[Xreducedall_cols].loc[testind]
-    Y_test = all[Expr_cols[1:]].loc[testind]
     info_test = all.drop(columns=Xreducedall_cols).drop(columns=Expr_cols[1:]).loc[testind]
     X_other = all[Xreducedall_cols].loc[otherind]
-    Y_other = all[Expr_cols[1:]].loc[otherind]
     info_other = all.drop(columns=Xreducedall_cols).drop(columns=Expr_cols[1:]).loc[otherind]
+    if not args.no_exp:
+        Y_train = all[Expr_cols[1:]].loc[trainind]
+        Y_test = all[Expr_cols[1:]].loc[testind]
+        Y_other = all[Expr_cols[1:]].loc[otherind]
 
     # Save X and Y as hdf5 format (save object is not torch object)
     with h5py.File(args.output + 'X_Y.h5', 'w') as f:
         # train
         f.create_group('train')
         f['train'].create_dataset('X', data = X_train, compression = "gzip", compression_opts = 9)
-        f['train'].create_dataset('y', data = Y_train, compression = "gzip", compression_opts = 9)
         # test
         f.create_group('test')
         f['test'].create_dataset('X', data = X_test, compression = "gzip", compression_opts = 9)
-        f['test'].create_dataset('y', data = Y_test, compression = "gzip", compression_opts = 9)
         # others
         f.create_group('other')
         f['other'].create_dataset('X', data = X_other, compression = "gzip", compression_opts = 9)
-        f['other'].create_dataset('y', data = Y_other, compression = "gzip", compression_opts = 9)
+        if not args.no_exp:
+            f['train'].create_dataset('y', data = Y_train, compression = "gzip", compression_opts = 9)
+            f['test'].create_dataset('y', data = Y_test, compression = "gzip", compression_opts = 9)
+            f['other'].create_dataset('y', data = Y_other, compression = "gzip", compression_opts = 9)
 
     # Save X column, Y column, common rows as txt.gz file
     pd.DataFrame(X_train.columns).to_csv(args.output + 'X_train_col.txt.gz', header = False, compression = 'gzip', sep = "\t", index=False)
     pd.DataFrame(X_test.columns).to_csv(args.output + 'X_test_col.txt.gz', header = False, compression = 'gzip', sep = "\t", index=False)
     pd.DataFrame(X_other.columns).to_csv(args.output + 'X_other_col.txt.gz', header = False, compression = 'gzip', sep = "\t", index=False)
-    pd.DataFrame(Y_train.columns).to_csv(args.output + 'Y_train_col.txt.gz', header = False, compression = 'gzip', sep = "\t", index=False)
-    pd.DataFrame(Y_test.columns).to_csv(args.output + 'Y_test_col.txt.gz', header = False, compression = 'gzip', sep = "\t", index=False)
-    pd.DataFrame(Y_other.columns).to_csv(args.output + 'Y_other_col.txt.gz', header = False, compression = 'gzip', sep = "\t", index=False)
+    if not args.no_exp:
+        pd.DataFrame(Y_train.columns).to_csv(args.output + 'Y_train_col.txt.gz', header = False, compression = 'gzip', sep = "\t", index=False)
+        pd.DataFrame(Y_test.columns).to_csv(args.output + 'Y_test_col.txt.gz', header = False, compression = 'gzip', sep = "\t", index=False)
+        pd.DataFrame(Y_other.columns).to_csv(args.output + 'Y_other_col.txt.gz', header = False, compression = 'gzip', sep = "\t", index=False)
 
     # data metrics
     metrics = pd.DataFrame([[len(X_train), len(X_test), len(X_other)]])
