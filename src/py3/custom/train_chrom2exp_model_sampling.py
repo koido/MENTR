@@ -194,11 +194,14 @@ if args.verbose:
     print("Shape of y_train (after filtering):", y_train.shape)
 
 # split train data into new train and validation data for tuning [80%, 20%]
-if args.n_sampling > 0:
+if args.n_sampling == 0:
     indices = np.random.permutation(X_train.shape[0])
     train_idx, valid_idx = indices[:int(len(indices) * 0.8)], indices[int(len(indices) * 0.8):]
 else:
-    indices = np.random.choice(X_train.shape[0], size = n_sampling, replace = False, random_state = args.seed_sampling)
+    # local seed
+    #rng = np.random.default_rng(args.seed_sampling)
+    rng = np.random.RandomState(args.seed_sampling)
+    indices = rng.choice(X_train.shape[0], size = args.n_sampling, replace = False)
     # From sampled indices, split train (80%) and validation (20%) data
     train_idx = indices[:int(len(indices) * 0.8)]
     valid_idx = indices[int(len(indices) * 0.8):]
