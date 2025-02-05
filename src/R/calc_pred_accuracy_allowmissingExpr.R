@@ -25,7 +25,10 @@ parser$add_argument("--threshold_binary", default = 0,
                     help = "Threshold for binalizing. Default: >0 is expressed.")
 parser$add_argument("--auroc", action = 'store_true',
                     help = "If true, AUROC is evaluated. Otherwise, Spearman's rho is evaluated.")
-
+parser$add_argument("--type_filter", default = "none", choices = c("none", "promoter", "enhancer"),
+                    help = "Type of filtering [none/promoter/enhancer]")
+parser$add_argument("--geneClassStr_filter", nargs="+",
+                    help = "geneClassStr filtering (exact matching); can specify multiple values; default: no filtering")
 args <- parser$parse_args()
 
 # library for analysis
@@ -104,6 +107,16 @@ s_fn_spearman <- function(.df, stats){
 # read prediction file
 pred <- read_delim(file = args$input_file, delim = "\t", col_types = args$col_types)
 colnames(pred)[colnames(pred) == args$header_prediction] <- "pred"
+
+# filter by type
+if(args$type_filter != "none"){
+  pred <- pred %>% dplyr::filter(type == args$type_filter)
+}
+
+# filter by geneClassStr
+if(length(args$geneClassStr_filter) > 0){
+  pred <- pred %>% dplyr::filter(geneClassStr %in% args$geneClassStr_filter)
+}
 
 # calculate
 stats <- data.frame()
