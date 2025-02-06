@@ -40,6 +40,8 @@ parser.add_argument('--infile_dir', required=True,
 # training parameters
 parser.add_argument('--filterStr', default='all', choices=['all', 'promoter', 'enhancer'],
                     help='Filtering for training; all or promoter or enhancer')
+parser.add_argument('--geneClassStr', default='all',
+                    help='Filtering for training')
 parser.add_argument('--pseudocount', type=float, default=0.0001,
                     help='Pseudo-count for y; Used if --logistic is not specified.')
 parser.add_argument('--num_round', type=int, default=500,
@@ -170,6 +172,11 @@ elif args.filterStr == 'all':
     assert filt_train.shape[0] == info_train.shape[0]
 else:
     raise ValueError('filterStr has to be one of all, promoter, enhancer')
+
+# geneClassStr filter
+if args.geneClassStr != 'all':
+    filt_train = filt_train * \
+        np.asarray(info_train.loc[:, 'geneClassStr'].isin([args.geneClassStr]))
 
 if args.logistic:
     # gene QC
@@ -303,6 +310,9 @@ if args.n_sampling > 0:
 if args.logistic == False:
     cmn_header = cmn_header + \
         '_pseudocount.' + str(args.pseudocount)
+if args.geneClassStr != 'all':
+    cmn_header = cmn_header + \
+        '_geneClassStr.' + args.geneClassStr
 
 # gbtree mode
 if booster == 'gbtree':
