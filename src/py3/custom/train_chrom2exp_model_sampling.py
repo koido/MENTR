@@ -67,6 +67,8 @@ parser.add_argument('--gbt', action='store_true',
 parser.add_argument('--threads', type=int, default=1,
                     help='Number of CPUs for xgboost.')
 parser.add_argument('--seed', type=int, default=12345)
+parser.add_argument('--shorter_name', action='store_true',
+                    help='Shorter name for output files.')
 
 # args for sampling in train
 parser.add_argument('--seed_sampling', type=int, default=12345)
@@ -294,15 +296,18 @@ if args.CAGE_lib_ID is None:
 else:
     cmn_header = cmn_header + \
         '_CAGE_lib_ID.' + args.CAGE_lib_ID
-cmn_header = cmn_header + \
-    '_filterStr.' + args.filterStr + \
-    '_num_round.' + str(int(args.num_round)) + \
-    '_early_stopping_rounds.' + str(int(args.early_stopping_rounds)) + \
-    '_base_score.' + str(args.base_score) + \
-    '_l1.' + str(args.l1) + \
-    '_l2.' + str(args.l2) + \
-    '_eta.' + str(args.eta) + \
-    '_seed.' + str(int(args.seed))
+
+if not args.shorter_name:
+    cmn_header = cmn_header + \
+        '_filterStr.' + args.filterStr + \
+        '_num_round.' + str(int(args.num_round)) + \
+        '_early_stopping_rounds.' + str(int(args.early_stopping_rounds)) + \
+        '_base_score.' + str(args.base_score) + \
+        '_l1.' + str(args.l1) + \
+        '_l2.' + str(args.l2) + \
+        '_eta.' + str(args.eta) + \
+        '_seed.' + str(int(args.seed))
+
 if args.n_sampling > 0:
     cmn_header = cmn_header + \
         '_n_sampling.' + str(int(args.n_sampling)) + \
