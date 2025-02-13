@@ -69,6 +69,8 @@ parser.add_argument('--seed', type=int, default=12345)
 # args for filtering in train
 parser.add_argument('--train_clusterID',
                     help='ClusterID list to use for training(+validation); Each line is a CAGE ID.; No header.')
+parser.add_argument('--highest_promoter', action='store_true',
+                    help='Use the highest promoter for each gene for training MENTR.')
 parser.add_argument('--verbose', action='store_true')
 
 args = parser.parse_args()
@@ -185,9 +187,26 @@ if args.train_clusterID is not None:
     train_clusterID = pd.read_csv(args.train_clusterID, dtype='str', delimiter='\t', header=None, names=['clusterID'])
     # Add filter column
     train_clusterID['filter'] = True
-    # left join with the filter column
-    merged = pd.merge(info_train[['clusterID']], train_clusterID, 
-                     on='clusterID', how='left')
+    
+    if args.highest_promoter:
+        merged = pd.merge(info_train[['clusterID', 'clusterName']], train_clusterID, 
+                          on='clusterID', how='left')
+        # The highest promoter for each gene is selected by the following criteria.
+        # clusterName is like p1@XX or p4@XX
+        # if p1 (promoter id for each gene), this is the highest promoter of XX
+        # Anyway, what we need is (1) extract pX from clusterName,
+        # (2) p1's filter column is True, and the others are False.
+        def is_highest_promoter(row):
+            promoter_id = row['clusterName'].split('@')[0]
+            return promoter_id == 'p1' and row['filter']
+
+        # apply関数の呼び出し方を変更
+        merged['filter'] = merged.apply(is_highest_promoter, axis=1)
+    else:
+        # left join with the filter column
+        merged = pd.merge(info_train[['clusterID']], train_clusterID, 
+                        on='clusterID', how='left')
+
     # Convert NaN to False in filter column
     cluster_filter = np.asarray(merged['filter'].fillna(False))
     assert cluster_filter.shape == filt_train.shape, "Shape mismatch between cluster_filter and filt_train"
