@@ -92,6 +92,7 @@ s_fn_spearman <- function(.df, stats){
   # tie.method = average (default)
   .cor_res <- cor.test(x = rank(.df$pred), y = rank(.df$log_expr), method = "pearson")
   .r <- .cor_res$estimate
+  # Fisher's z-transformation (approximated 95% CI)
   .r_95CI_L <- .cor_res$conf.int[1]
   .r_95CI_H <- .cor_res$conf.int[2]
   .p = .cor_res$p.value
