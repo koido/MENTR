@@ -74,6 +74,8 @@ parser.add_argument('--shorter_name', action='store_true',
 parser.add_argument('--seed_sampling', type=int, default=12345)
 parser.add_argument('--n_sampling', type=int, default=0,
                     help='Number of samples to use for training.; 0 means all samples are used.')
+parser.add_argument('--highest_promoter', action='store_true',
+                    help='Use the highest promoter for each gene for training MENTR.')
 parser.add_argument('--verbose', action='store_true')
 
 args = parser.parse_args()
@@ -189,6 +191,29 @@ else:
     filt_train = filt_train * \
         np.isfinite(np.log(y_train + args.pseudocount)).reshape(-1) * \
         np.isfinite(y_train).reshape(-1)
+
+if args.highest_promoter:
+
+    if args.verbose:
+        print("Highest promoter mode.")
+        print("Original filt_train has {} True values.".format(filt_train.sum()))
+
+    # The highest promoter for each gene is selected by the following criteria.
+    # clusterName is like p1@XX or p4@XX
+    # if p1 (promoter id for each gene), this is the highest promoter of XX
+    # Anyway, what we need is (1) extract pX from clusterName,
+    # (2) p1's filter column is True, and the others are False.
+    def is_highest_promoter(row):
+        promoter_id = row['clusterName'].split('@')[0]
+        if promoter_id == 'p1':
+            return True
+        else:
+            return False
+    filt_train = filt_train * \
+        np.asarray(info_train.apply(is_highest_promoter, axis=1))
+
+    if args.verbose:
+        print("By the highest promoter mode, the updated filt_train has {} True values.".format(filt_train.sum()))
 
 # Filtering X_train and y_train by the above QC
 if args.verbose:
