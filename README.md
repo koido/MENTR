@@ -30,7 +30,7 @@ In addition to the image, you need to get the external resources (see [here](htt
 ### External resources
 
  - hg19.fa
- - deepsea.beluga.2002.cpu (from https://github.com/FunctionLab/ExPecto, especially [here]( https://github.com/FunctionLab/ExPecto/blob/447737793d8d21e50e82379feca44fb9465fdc79/download_resources.sh); `wget http://deepsea.princeton.edu/media/code/expecto/resources.tar.gz`)
+ - deepsea.beluga.2002.cpu (from https://zenodo.org/record/1744799); `wget https://zenodo.org/record/1744799/files/deepsea.beluga.2002.cpu`)
 
 These are required even if you use Docker or Singularity image.
 
